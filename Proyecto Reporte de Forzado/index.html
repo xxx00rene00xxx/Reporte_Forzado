@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ARAUCO|Reporte Forzados DCS y PLC Seguridad</title>
+    <!-- Carga de Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Carga de Chart.js para los gráficos -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+    <!-- Configuración de Tailwind para usar un font moderno -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f7f7;
+        }
+        .task-card {
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .task-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        /* Estilo base para el canvas que lo hace responsivo */
+        canvas {
+            max-width: 100%;
+            height: auto;
+        }
+
+
+        /* Hero Section: Animaci n de Desenfoque al Despliegue */
+        .hero-section {
+            height: 30vh;
+            background-image: url('https://i.postimg.cc/5y5CHdnr/ARAUCO-01-1.png');
+            background-repeat: no-repeat;
+            background-size: 50vh;
+            background-position: center;
+            position: relative;
+            transition: filter 0.5s ease;
+        }
+        .hero-section.blurred {
+            filter: blur(5px);
+        }
+
+        /* Animaci n de Puntos de Entrada (Solo CSS para los puntos) */
+        .dot-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 99;
+        }
+        .dot {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background-color: white;
+            border-radius: 50%;
+            opacity: 0;
+            animation: dot-entry 0.5s forwards;
+        }
+
+        @keyframes dot-entry {
+            0% { opacity: 1; transform: scale(0.1); }
+            100% { opacity: 0; transform: scale(1.5); }
+        }
+
+
+
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+
+    <!-- Contenido Principal -->
+    <main class="main-content flex-1">
+        <!-- Hero Section: Desenfoque Din mico -->
+        <section class="hero-section flex items-end justify-end" id="heroSection">
+            <h1 class="text-2xl font-extrabold text-white text-shadow-lg p-4 bg-black bg-opacity-60 rounded-1g">
+                Sistema de Gestión de Forzados
+            </h1>
+        </section>
+
+         <p class="mt-2 text-slate-600">
+                   
+         </p>
+
+
+
+        <!-- Indicador de Carga -->
+        <div id="loading-indicator" class="text-center p-10 bg-white rounded-xl shadow-xl hidden">
+            <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-blue-500 inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <span class="text-gray-700 font-semibold">Cargando datos desde Google Sheets...</span>
+        </div>
+
+        <!-- Contenedor de Filtros de Sistema -->
+        <div class="mb-4 p-5 bg-white rounded-xl shadow-inner border-l-4 border-[#EA7600]">
+            <h2 class="text-xl font-bold text-[#696158] mb-3 text-center">Seleccione Sistema:</h2>
+            <div id="data-view-buttons" class="flex flex-wrap gap-4 justify-center">
+                <!-- Los botones de Vista se generarán aquí -->
+            </div>
+        </div>
+
+        <!-- NUEVO: Contenedor de Filtros de Área -->
+        <div class="mb-6 p-5 bg-white border-l-4 border-[#EA7600] rounded-xl shadow-md ">
+            <h2 class="text-xl font-bold text-[#696158] mb-3 text-center">Seleccione Área:</h2>
+            <div id="area-filter-buttons" class="flex flex-wrap gap-3 justify-center">
+                <!-- Los botones de Área se generarán aquí -->
+            </div>
+        </div>
+
+        <!-- Recuadro de Forzados Pendientes por Normalizar -->
+        <div id="forced-summary-box" class="mb-10 p-6 bg-white rounded-xl shadow-2xl border-l-4 border-[#EA7600]">
+            <!-- El contenido se generará por JavaScript -->
+        </div>
+
+        <!-- Sección de Gráficos de Resumen -->
+        <div id="summary-charts-container" class="mb-10 p-6 bg-white rounded-xl shadow-xl border-l-4 border-[#EA7600]">
+            <h2 class="text-2xl font-extrabold text-[#696158] mb-6 text-center border-b pb-4">
+                Distribución por Categoría
+            </h2>
+            <div class="grid grid-cols-1 gap-8">
+                <div class="p-4 border border-gray-200 rounded-lg shadow-inner">
+                    <h3 id="chart-title" class="text-xl font-bold text-[#696158] mb-4 text-center"></h3>
+                    <div class="flex justify-center">
+                        <canvas id="categoryPieChart" style="max-height: 500px;"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Contenedor de Filtros de Responsable -->
+        <div class="mb-8 p-4 bg-white rounded-xl shadow-md border-l-4 border-[#EA7600]">
+            <h2 class="text-lg font-semibold text-[#696158] mb-3 text-center">Filtrar Tareas por Responsable:</h2>
+            <div id="responsible-filter-buttons" class="flex flex-wrap gap-3 justify-center">
+                <!-- Los botones de Responsable se generarán aquí -->
+            </div>
+        </div>
+
+        <!-- Contenedor Principal de la Infografía -->
+        <div id="tasks-container" class="space-y-12">
+            <!-- Las secciones y tareas se renderizarán aquí -->
+        </div>
+
+        <!-- Leyenda -->
+        <div class="mt-12 p-6 bg-white rounded-xl shadow-md text-lm text-gray-700 border-l-4 border-[#EA7600]">
+   
+            <p class="text-xl font-bold">Nota sobre Categorías:</p>
+            <ul class="list-disc list-inside ml-4">
+                <li><span class="font-bold text-[#696158]">En Consulta:</span> Tareas en etapa de revisión o consulta con otras unidades.</li>
+                <li><span class="font-bold text-[#BFB800]">Normalización:</span> Normalización de Forzado requerida, a la espera de las condiciones para su ejecución.</li>
+                <li><span class="font-bold text-[#EA7600]">Pendiente Lógica:</span> Requiere definición de lógica/interlock y/o generación de Avisos.</li>
+                <li><span class="font-bold text-[#DFD1A7]">En configuración:</span> Tareas de implementación de lógicas y tags en el sistema de control.</li>
+                <li><span class="font-bold text-[#C7775E]">Planificación:</span> Tareas administrativas/logísticas para normalización (compras, licitación).</li>
+                <li><span class="font-bold text-[#F8B625]">Revisión en Terreno:</span> Necesidad de levantar antecedentes y corroborar información física.</li>
+                <li><span class="font-bold text-[#13243C]">Detenciones:</span> Trabajos con fecha de ejecución programada a largo plazo.</li>
+                <li><span class="font-bold text-[#75C3AD]">Normalizado:</span> Forzado Normalizado o con acción correctiva realizada.</li>
+            </ul>
+        </div>
+
+    </div>
+
+    <script>
+        // Array global para almacenar todas las tareas cargadas
+        let allTasks = [];
+        
+        // --- DATA Y CONFIGURACIÓN ---
+
+        const CHART_COLOR_MAP = {
+            "En Consulta": '#696158', 
+            "Normalización": '#BFB800',
+            "Pendiente Lógica": '#EA7600',
+            "En configuración": '#DFD1A7',
+            "Planificación": '#C7775E',
+            "Revisión en Terreno": '#F8B625',
+            "Detenciones": '#13243C',
+            "Normalizado": '#75C3AD',
+            "DCS": '#1d4ed8',
+            "PLC Seguridad": '#b91c1c',
+        };
+
+const responsibleColors = {
+    "Vincenzo Sartori": "bg-[#EA7600] hover:bg-gray-200",
+    "Gerardo Ramirez": "bg-[#EB7A07] hover:bg-gray-200",
+    "Carlos Contreras": "bg-[#EB7D0D] hover:bg-gray-200",
+    "Rodolfo Marroquin": "bg-[#EC8114] hover:bg-gray-200",
+    "Carlos/Vincenzo": "bg-[#ED841B] hover:bg-gray-200",
+    "Vincenzo/Carlos/Hector": "bg-[#ED8822] hover:bg-gray-200",
+    "PGP 2026": "bg-[#EE8B28] hover:bg-gray-200",
+    "Overhaul TG3 2027": "bg-[#EE8F2F] hover:bg-gray-200",
+    "Todos": "bg-[#EA7600] hover:bg-gray-200", // Se mantiene gris por funcionalidad
+    "Camila Pavez": "bg-[#F2A151] hover:bg-gray-200",
+    "Jorge Zuñiga": "bg-[#F2A558] hover:bg-gray-200",
+    "Raul Rozas": "bg-[#F3A85E] hover:bg-gray-200",
+    "Marco Gutierrez": "bg-[#F3AC65] hover:bg-gray-200",
+    "Christian Jofre": "bg-[#F4AF6C] hover:bg-gray-200",
+    "Carlos Rodriguez": "bg-[#F5B373] hover:bg-gray-200",
+    "Jaime Toro": "bg-[#F5B679] hover:bg-gray-200",
+    "Sebastian Godoy": "bg-[#F6BA80] hover:bg-gray-200"
+};
+
+        const categoryColors = {
+            "En Consulta": "bg-[#696158] border-[#696158] text-[#696158]",
+            "Normalización": "bg-[#BFB800] border-[#BFB800] text-[#BFB800]",
+            "Pendiente Lógica": "bg-[#EA7600] border-[#EA7600] text-[#EA7600]",
+            "En configuración": "bg-[#DFD1A7] border-[#DFD1A7] text-[#DFD1A7]",
+            "Planificación": "bg-[#C7775E] border-[#C7775E] text-[#C7775E]",
+            "Revisión en Terreno": "bg-[#F8B625] border-[#F8B625] text-[#F8B625]",
+            "Detenciones": "bg-[#13243C] border-[#13243C] text-[#13243C]",
+            "Normalizado": "bg-[#75C3AD] border-[#75C3AD] text-[#75C3AD]"
+        };
+        
+        const categoryHeaders = {
+            "En Consulta": "En Consulta a Unidad Corporativa (Definición)",
+            "Normalización": "Normalización de Forzados (Acción Directa)",
+            "Pendiente Lógica": "Pendiente Definir Lógica (Generar Aviso)",
+            "En configuración": "En Configuración",
+            "Planificación": "Planificación (Logística y Compras)",
+            "Revisión en Terreno": "Revisión en Terreno (Levantamiento de Antecedentes)",
+            "Detenciones": "Trabajos Programados en Detenciones Mayores",
+            "Normalizado": "✅ Forzado Normalizado"
+        };
+        
+        const dataViews = ["General", "DCS", "PLC Seguridad"];
+
+        let currentDataView = "General"; 
+        let currentResponsibleFilter = "Todos";
+        let currentAreaFilter = "Todas"; // Nuevo filtro
+
+        const expectedColumns = [
+            'id', 'category', 'tag', 'description', 'action', 'responsible', 'system', 'fecha_compromiso', 'area'
+        ];
+
+        const heroSection = document.getElementById('heroSection');
+        const dotContainer = document.getElementById('dotContainer');
+
+
+
+
+        // --- FUNCIONES DE CARGA Y PARSEO ---
+
+        function parseGvizResponse(responseText) {
+            const jsonStart = responseText.indexOf('{');
+            const jsonEnd = responseText.lastIndexOf('}');
+            if (jsonStart === -1 || jsonEnd === -1) throw new Error("Formato incorrecto");
+            return JSON.parse(responseText.substring(jsonStart, jsonEnd + 1));
+        }
+
+        function convertGvizToTasks(gvizData) {
+            const tasks = [];
+            const table = gvizData.table;
+            if (!table || !table.rows) return tasks;
+
+            table.rows.slice(1).forEach(row => {
+                const task = {};
+                let isValidRow = false; 
+
+                expectedColumns.forEach((colName, index) => {
+                    const cell = row.c[index];
+                    let value = ''; 
+                    if (cell) {
+                        value = (cell.f !== undefined && cell.f !== null) ? cell.f : (cell.v !== undefined ? cell.v : '');
+                    }
+                    task[colName] = String(value).trim();
+                    if (task[colName] !== '') isValidRow = true;
+                });
+
+                if (isValidRow) {
+                    const upperSystem = (task.system || '').toUpperCase();
+                    if (upperSystem.includes('PLC')) task.system = 'PLC Seguridad';
+                    else if (upperSystem.includes('DCS')) task.system = 'DCS';
+                    else task.system = 'UNKNOWN';
+                    
+                    if (task.system !== 'UNKNOWN' && task.category !== '') tasks.push(task);
+                }
+            });
+            return tasks;
+        }
+
+        async function fetchTasksFromSheet(maxRetries = 3) {
+            const sheetBaseUrl = "https://docs.google.com/spreadsheets/d/1O7BWEHxWUC_oDHMcyMETxxbKsBjBlA56N9nGTvBwxeM/gviz/tq?tqx=out:json&gid=0&tq=select *"; 
+            const sheetUrl = sheetBaseUrl + `&_t=${new Date().getTime()}`; 
+
+            const loadingIndicator = document.getElementById('loading-indicator');
+            loadingIndicator.classList.remove('hidden');
+
+            for (let attempt = 0; attempt < maxRetries; attempt++) {
+                try {
+                    const response = await fetch(sheetUrl);
+                    if (!response.ok) throw new Error("Error HTTP");
+                    const loadedTasks = convertGvizToTasks(parseGvizResponse(await response.text()));
+                    loadingIndicator.classList.add('hidden');
+                    return loadedTasks;
+                } catch (error) {
+                    if (attempt === maxRetries - 1) {
+                        loadingIndicator.classList.add('hidden');
+                        return [];
+                    }
+                    await new Promise(resolve => setTimeout(resolve, 500 * Math.pow(2, attempt)));
+                }
+            }
+        }
+
+        // --- FILTRADO ---
+
+        function applyFilters(tasks) {
+            let filtered = tasks;
+            
+            // Filtro por Sistema
+            if (currentDataView !== "General") {
+                filtered = filtered.filter(t => t.system === currentDataView);
+            }
+            
+            // Filtro por Área
+            if (currentAreaFilter !== "Todas") {
+                filtered = filtered.filter(t => t.area === currentAreaFilter);
+            }
+            
+            // Filtro por Responsable
+            if (currentResponsibleFilter !== "Todos") {
+                filtered = filtered.filter(t => t.responsible === currentResponsibleFilter);
+            }
+            
+            return filtered;
+        }
+
+        // --- UI RENDERING ---
+
+        function renderSummaryBox() {
+            const container = document.getElementById('forced-summary-box');
+            // Resumen basado en sistema y área
+            let summaryTasks = allTasks;
+            if(currentDataView !== "General") summaryTasks = summaryTasks.filter(t => t.system === currentDataView);
+            if(currentAreaFilter !== "Todas") summaryTasks = summaryTasks.filter(t => t.area === currentAreaFilter);
+
+            const total = summaryTasks.length;
+            const pending = summaryTasks.filter(t => t.category !== "Normalizado").length;
+
+            const viewTitle = `${currentDataView === "General" ? "TODOS los Sistemas" : currentDataView} - Área: ${currentAreaFilter}`;
+
+            let pendingBgColor = 'bg-red-100 border-red-500';
+            if (pending < 10) pendingBgColor = 'bg-green-100 border-green-500';
+            else if (pending < 25) pendingBgColor = 'bg-yellow-100 border-yellow-500';
+
+            container.innerHTML = `
+                <h2 class="text-2xl font-extrabold text-[#696158] mb-6 text-center">
+                    Forzados Pendientes: ${viewTitle}
+                </h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-center">
+                    <div class="p-6 rounded-lg shadow-xl border-l-8 ${pendingBgColor}">
+                        <p class="text-6xl font-black text-red-600">${pending}</p>
+                        <p class="text-xl font-bold text-gray-700 mt-2">PENDIENTES</p>
+                    </div>
+                    <div class="p-6 rounded-lg shadow-xl border-l-8 border-[#EA7600] bg-gray-50">
+                        <p class="text-6xl font-black text-[#696158]">${total}</p>
+                        <p class="text-xl font-bold text-[#696158] mt-2">TOTAL REGISTRADO</p>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderCharts() {
+            const filteredTasks = applyFilters(allTasks);
+            const categoryCounts = {};
+            filteredTasks.forEach(task => {
+                categoryCounts[task.category] = (categoryCounts[task.category] || 0) + 1;
+            });
+
+            const ctx = document.getElementById('categoryPieChart');
+            const chartTitleElement = document.getElementById('chart-title');
+            if (!ctx) return;
+
+            const labels = Object.keys(categoryCounts);
+            const data = Object.values(categoryCounts);
+            const backgroundColors = labels.map(label => CHART_COLOR_MAP[label] || '#ccc');
+
+            const existingChart = Chart.getChart(ctx);
+            if (existingChart) existingChart.destroy();
+
+            chartTitleElement.textContent = `Distribución de Forzados (${currentAreaFilter})`;
+
+            new Chart(ctx, {
+                type: 'doughnut', 
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: data,
+                        backgroundColor: backgroundColors,
+                        borderWidth: 1,
+                        borderColor: '#ffffff',
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false, 
+                    plugins: { legend: { position: 'bottom' } }
+                }
+            });
+        }
+
+function renderDataViewButtons() {
+    const container = document.getElementById('data-view-buttons');
+    container.innerHTML = ''; 
+
+    dataViews.forEach(view => {
+        const button = document.createElement('button');
+        
+        // Comprobamos si la vista actual es la seleccionada
+        const isSelected = view === currentDataView;
+        
+        // Definimos las clases según el estado
+        const bgColor = isSelected ? "bg-[#EA7600]" : "bg-white";
+        const textColor = isSelected ? "text-white" : "text-gray-700";
+        const activeRing = isSelected ? "ring-2 ring-[#EA7600]" : "ring-1 ring-gray-200";
+
+        // Combinamos todas las clases
+        button.className = `px-6 py-3 rounded-lg font-bold shadow-sm transition transform hover:scale-105 ${bgColor} ${textColor} ${activeRing}`;
+        
+        button.textContent = view.toUpperCase();
+        
+        button.onclick = () => {
+            currentDataView = view;
+            currentAreaFilter = "Todas"; 
+            currentResponsibleFilter = "Todos";
+            refreshUI(); // Esto volverá a llamar a renderDataViewButtons() y actualizará los colores
+        };
+        
+        container.appendChild(button);
+    });
+}
+
+        function renderAreaFilterButtons() {
+            const container = document.getElementById('area-filter-buttons');
+            container.innerHTML = '';
+            
+            // Áreas disponibles para el sistema seleccionado ${color} ${activeRing}
+            let relevantTasks = currentDataView === "General" ? allTasks : allTasks.filter(t => t.system === currentDataView);
+            const areas = [...new Set(relevantTasks.map(t => t.area))].filter(a => a && a !== '').sort();
+            areas.unshift("Todas");
+
+            areas.forEach(area => {
+                const button = document.createElement('button');
+                const isActive = area === currentAreaFilter;
+                button.className = `px-4 py-2 rounded-lg font-bold transition shadow-sm ${isActive ? 'bg-[#EA7600] text-white ring-2 ring-[#EA7600]' : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-300'}`;
+                button.textContent = area.toUpperCase();
+                button.onclick = () => {
+                    currentAreaFilter = area;
+                    refreshUI();
+                };
+                container.appendChild(button);
+            });
+        }
+
+        function renderResponsibleFilterButtons() {
+            const container = document.getElementById('responsible-filter-buttons');
+            container.innerHTML = ''; 
+            const filteredForResp = allTasks.filter(t => 
+                (currentDataView === "General" || t.system === currentDataView) &&
+                (currentAreaFilter === "Todas" || t.area === currentAreaFilter)
+            );
+
+            const responsibles = [...new Set(filteredForResp.map(t => t.responsible))].filter(r => r && r !== '' && !r.startsWith('N/A')).sort();
+            responsibles.unshift("Todos");
+            
+            responsibles.forEach(resp => {
+                const button = document.createElement('button');
+                const color = responsibleColors[resp] || "bg-gray-400";
+                const activeRing = resp === currentResponsibleFilter ? "ring-4 ring-[#EA7600]" : "";
+                button.className = `px-4 py-2 rounded-lg font-bold text-gray-700 shadow-md transition transform hover:scale-100 ${activeRing ? 'bg-[#EA7600] text-white ring-2 ring-[#EA7600]' : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-300'} ${activeRing}`;
+                button.textContent = resp === "Todos" ? "TODOS" : resp.split(' ')[0].toUpperCase();
+                button.onclick = () => {
+                    currentResponsibleFilter = resp;
+                    renderResponsibleFilterButtons();
+                    renderTasks();
+                };
+                container.appendChild(button);
+            });
+        }
+
+        function generateTaskCard(task) {
+            const categoryClass = categoryColors[task.category] || "bg-gray-100 border-gray-400 text-gray-800";
+            const borderColor = categoryClass.split(' ')[1];
+            const systemBadge = task.system === "DCS" ? "bg-[#75C3AD]" : "bg-[#C7775E]";
+            const commitmentDate = task.fecha_compromiso && task.fecha_compromiso.toUpperCase() !== 'N/A' ? 
+                `<p class="text-lg font-bold text-red-600 mt-2">Compromiso: <span class="text-lg text-red-600">${task.fecha_compromiso}</span></p>` : '';
+
+            return `
+                <div class="task-card p-5 border-l-4 ${borderColor} rounded-lg shadow-sm flex flex-col justify-between bg-white">
+                    <div>
+                        <div class="flex justify-between items-start mb-2">
+                            <span class="text-xl font-extrabold text-[#696158]">${task.tag}</span>
+                            <div class="flex justify-center flex-col items-end gap-1">
+                                <span class="inline-flex items-center justify-center text-[10px] font-black px-2 py-0.5 rounded-full bg-[#BFB800] text-white mb-1 border text-center"> ${task.area || 'SIN ÁREA'} </span>
+                                <span class="inline-flex items-center justify-center text-xs font-bold px-2 py-1 rounded-full ${systemBadge} text-white ">${task.system}</span>
+                                <span class="inline-flex items-center justify-center text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[#EA7600] text-white">${task.responsible}</span>
+                            </div>
+                        </div>
+                        <p class="text-lm font-medium text-[#696158] mb-3">${task.description}</p>
+                    </div>
+                    <div>
+                        ${commitmentDate}
+                        <p class="mt-2 text-lm text-[#696158] font-bold">ACCIONES:</p>
+                        <p class="text-base font-semibold ${categoryClass.split(' ')[2]}">${task.action}</p>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderTasks() {
+            const container = document.getElementById('tasks-container');
+            container.innerHTML = '';
+            const filteredTasks = applyFilters(allTasks);
+
+            const grouped = filteredTasks.reduce((acc, task) => {
+                if (!acc[task.category]) acc[task.category] = [];
+                acc[task.category].push(task);
+                return acc;
+            }, {});
+
+            const ordered = ["En Consulta", "Normalización", "Pendiente Lógica", "En configuración", "Planificación", "Revisión en Terreno", "Detenciones", "Normalizado"];
+            let hasContent = false;
+
+            ordered.forEach(cat => {
+                if (grouped[cat] && grouped[cat].length > 0) {
+                    hasContent = true;
+                    const section = document.createElement('section');
+                    section.className = "bg-white p-6 rounded-xl shadow-xl border-l-4 border-[#EA7600]";
+                    section.innerHTML = `
+                        <h3 class="text-2xl font-bold mb-6 pb-2 border-b-2 border-gray-200 text-[#696158]">${categoryHeaders[cat]} (${grouped[cat].length})</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">${grouped[cat].map(generateTaskCard).join('')}</div>
+                    `;
+                    container.appendChild(section);
+                }
+            });
+            
+            if (!hasContent) {
+                container.innerHTML = `<div class="text-center p-10 bg-white rounded-xl shadow-xl"><p class="text-xl text-gray-500">No hay forzados con los filtros seleccionados.</p></div>`;
+            }
+        }
+
+        function refreshUI() {
+            renderDataViewButtons();
+            renderAreaFilterButtons();
+            renderResponsibleFilterButtons();
+            renderSummaryBox();
+            renderCharts();
+            renderTasks();
+        }
+
+        window.onload = async () => {
+            allTasks = await fetchTasksFromSheet();
+            refreshUI();
+        };
+
+    </script>
+</body>
+</html>
