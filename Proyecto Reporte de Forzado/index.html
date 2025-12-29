@@ -10,11 +10,76 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
     <!-- Configuración de Tailwind para usar un font moderno -->
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        :root {
+            --sidebar-width: 280px;
+            --main-color: #696158; /* Naranja */
+        }
+                   
+       @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
         body {
             font-family: 'Inter', sans-serif;
             background-color: #f7f7f7;
         }
+        
+        
+        
+            .sidebar {
+                width: var(--sidebar-width);
+                height: 100vh;
+                position: fixed;
+                background-color: var(--main-color);
+                transform: translateX(-150%); /* Oculta */
+                transition: transform 0.3s ease;
+                z-index: 50;
+            }
+            .sidebar.open {
+                transform: translateX(0);
+            }
+            
+            /* Botones del menú */
+            /* Añado estilos para los iconos de Lucide */
+            .sidebar a {
+                padding: 7.5px 25px;
+                font-weight: 600;
+                transition: background-color 0.5s;
+                display: flex; /* Para alinear el texto y el icono */
+                align-items: center;
+            }
+            .sidebar a:hover {
+                background-color: #BFB800; /* Naranja más oscuro */
+            }
+            
+            /* Botón de Hamburguesa */
+            .menu-btn {
+                position: fixed;
+                top: 20px;
+                left: 20px;
+                z-index: 100;
+                background: white;
+                padding: 7.5px 7.5px;
+                border-radius: 80%;
+                box-shadow: 0 10px 10px rgba(0, 0, 0, 0.2);
+                cursor: pointer;
+                transition: transform 0.3s;
+            }
+            .menu-btn.open {
+                transform: translateX(calc(var(--sidebar-width) - 80px)) rotate(360deg);
+            }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         .task-card {
             transition: transform 0.2s, box-shadow 0.2s;
         }
@@ -73,6 +138,47 @@
     </style>
 </head>
 <body class="p-4 md:p-8">
+
+
+     <!-- Sidebar Oculta -->
+        <aside class="sidebar flex flex-col pt-10 text-white" id="sidebar">
+            <h1 class="text-2xl font-bold p-5 text-center border-t border-[#ffffff]">Menú Principal</h1>
+
+
+
+                <a href="https://reporte-forzados.vercel.app/" target="_self" class="text-1.5xl block flex items-center justify-center p-2">
+                    <!-- Icono de Casa -->
+                    <span>Pantalla Principal</span>
+                </a>
+
+
+                <p class="text-1xl text-[#696158]">  ""  </p>
+            
+
+                <h1 class="text-1 font-semibold text-center border-b border-[#ffffff]"> Link Adicionales</h1>
+
+            <nav class="flex-1 mt-0">	
+                <!-- ENLACES AÑADIDOS/ACTUALIZADOS -->
+                <a href="https://alarms-report.vercel.app/" target="_self" class="text-1.5xl text-center block font-semibold flex items-center justify-center p-2">
+                    <!-- Icono de Casa -->
+                    <span>Reporte Alarmas Planta Constitución</span>
+                </a>	
+                </nav>
+            <footer class="p-5 text-sm text-cente opacity-70 border-t border-[#ffffff] mt-5">
+                <p class="text-sm">Desarrollado por ROL</p>
+                <p class="text-sm">Unidad DCS & Accionamiento</p>
+                </footer>
+        </aside>
+
+        <!-- Botón de Hamburguesa -->
+        <div class="menu-btn" id="menuBtn">
+            <svg class="w-6 h-6 text-[#696158]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+        </div>
+
+        <!-- Contenedor de Puntos de Animación -->
+        <div class="dot-container" id="dotContainer"></div>
+
+
 
 
     <!-- Contenido Principal -->
@@ -167,6 +273,7 @@
     </div>
 
     <script>
+
         // Array global para almacenar todas las tareas cargadas
         let allTasks = [];
         
@@ -237,9 +344,60 @@ const responsibleColors = {
             'id', 'category', 'tag', 'description', 'action', 'responsible', 'system', 'fecha_compromiso', 'area'
         ];
 
+
+
+
+        const sidebar = document.getElementById('sidebar');
+        const menuBtn = document.getElementById('menuBtn');
+
+
+
         const heroSection = document.getElementById('heroSection');
         const dotContainer = document.getElementById('dotContainer');
 
+            function createDot(x, y) {
+                const dot = document.createElement('div');
+                dot.classList.add('dot');
+                dot.style.left = `${x}px`;
+                dot.style.top = `${y}px`;
+                dot.style.animationDelay = `${Math.random() * 0.2}s`;
+                dotContainer.appendChild(dot);
+                
+                // Eliminar el punto después de la animación
+                dot.addEventListener('animationend', () => dot.remove());
+            }
+
+            function toggleSidebar(e) {
+                const isOpen = sidebar.classList.toggle('open');
+                menuBtn.classList.toggle('open');
+                heroSection.classList.toggle('blurred', isOpen);
+
+                if (isOpen) {
+                    // Disparar animación de puntos desde el botón
+                    const rect = menuBtn.getBoundingClientRect();
+                    const numDots = 15;
+                    for (let i = 0; i < numDots; i++) {
+                        // Distribución alrededor del botón
+                        const angle = (i / numDots) * 2 * Math.PI;
+                        const radius = 30; // Radio de dispersión inicial
+                        const x = rect.left + rect.width / 2 + Math.cos(angle) * radius;
+                        const y = rect.top + rect.height / 2 + Math.sin(angle) * radius;
+                        createDot(x, y);
+                    }
+                }
+            }
+
+
+             menuBtn.addEventListener('click', toggleSidebar);     
+
+            // Cierro el menú si se hace clic en cualquier enlace (comportamiento estándar de navegación)
+            sidebar.querySelectorAll('a').forEach(link => {
+                link.addEventListener('click', () => {
+                    sidebar.classList.remove('open');
+                    menuBtn.classList.remove('open');
+                    heroSection.classList.remove('blurred');
+                });
+            });
 
 
 
